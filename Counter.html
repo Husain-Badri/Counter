@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Counter</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; background: #000; color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden; touch-action: manipulation;
+    -webkit-user-select: none; user-select: none;
+  }
+  button { font-family: inherit; cursor: pointer; border: none; touch-action: manipulation; }
+
+  /* Main tap area */
+  #main {
+    height: 100%; display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 16px);
+  }
+  #topbar { display: flex; align-items: center; gap: 12px; padding: 14px 0; }
+  .iconBtn {
+    background: #0a58ff; color: #fff; width: 44px; height: 44px; border-radius: 10px;
+    font-size: 20px; flex-shrink: 0;
+  }
+  #title {
+    flex: 1; min-width: 0; font-size: 22px; font-weight: 600; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  #countWrap { flex: 1; display: flex; align-items: center; justify-content: center; }
+  #count { font-size: clamp(60px, 26vw, 200px); font-weight: 700; line-height: 1; word-break: break-all; text-align: center; }
+  #hint { text-align: center; color: #666; font-size: 13px; margin-bottom: 12px; }
+
+  #buttons { display: flex; flex-direction: column; gap: 14px; }
+  .big {
+    background: #0a58ff; color: #fff; font-size: 48px; font-weight: 700;
+    height: 96px; border-radius: 20px; width: 100%;
+  }
+  .big:active { background: #0846cc; transform: scale(0.98); }
+
+  /* Sidebar */
+  #overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; z-index: 10;
+  }
+  #overlay.open { display: block; }
+  #sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; width: min(88vw, 360px);
+    background: #111; border-right: 1px solid #222; z-index: 11;
+    transform: translateX(-100%); transition: transform .25s ease;
+    display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  #sidebar.open { transform: translateX(0); }
+  #sideHead { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid #222; }
+  #sideHead h2 { margin: 0; font-size: 20px; }
+  #addBtn { background: #0a58ff; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 16px; font-weight: 600; }
+  #list { flex: 1; overflow-y: auto; padding: 8px; }
+  .item {
+    display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 12px;
+    margin-bottom: 6px; background: #1a1a1a;
+  }
+  .item.active { outline: 2px solid #0a58ff; }
+  .item .info { flex: 1; min-width: 0; cursor: pointer; }
+  .item .name { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .val { font-size: 14px; color: #8ab0ff; margin-top: 2px; }
+  .item .act { background: #0a58ff; color: #fff; width: 40px; height: 40px; border-radius: 10px; font-size: 18px; flex-shrink: 0; }
+
+  /* Modal */
+  #modalBg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 20;
+    display: none; align-items: center; justify-content: center; padding: 16px;
+  }
+  #modalBg.open { display: flex; }
+  #modal {
+    background: #111; border: 1px solid #2a2a2a; border-radius: 18px; padding: 20px;
+    width: 100%; max-width: 380px;
+  }
+  #modal h3 { margin: 0 0 16px; font-size: 20px; }
+  #modal label { display: block; font-size: 14px; color: #aaa; margin: 12px 0 6px; }
+  #modal input {
+    width: 100%; background: #000; color: #fff; border: 2px solid #2a2a2a; border-radius: 10px;
+    padding: 12px; font-size: 18px; outline: none; font-family: inherit;
+    -webkit-user-select: text; user-select: text;
+  }
+  #modal input:focus { border-color: #0a58ff; }
+  #modal input.bad { border-color: #ff4d4d; }
+  #err { color: #ff6b6b; font-size: 14px; min-height: 20px; margin-top: 10px; }
+  #modalBtns { display: flex; gap: 10px; margin-top: 8px; }
+  #modalBtns button { flex: 1; padding: 14px; border-radius: 12px; font-size: 17px; font-weight: 600; }
+  #cancelBtn { background: #222; color: #fff; }
+  #saveBtn { background: #0a58ff; color: #fff; }
+</style>
+</head>
+<body>
+
+<div id="main">
+  <div id="topbar">
+    <button class="iconBtn" id="menuBtn" aria-label="Open counters">☰</button>
+    <div id="title"></div>
+    <button class="iconBtn" id="editBtn" aria-label="Edit this counter">✎</button>
+  </div>
+  <div id="countWrap"><div id="count">0</div></div>
+  <div id="hint">Tap anywhere to add</div>
+  <div id="buttons">
+    <button class="big" id="plus" aria-label="Increase">+</button>
+    <button class="big" id="minus" aria-label="Decrease">−</button>
+  </div>
+</div>
+
+<div id="overlay"></div>
+<aside id="sidebar">
+  <div id="sideHead">
+    <h2>My Counters</h2>
+    <button id="addBtn">+ Add</button>
+  </div>
+  <div id="list"></div>
+</aside>
+
+<div id="modalBg">
+  <div id="modal">
+    <h3 id="modalTitle">New Counter</h3>
+    <label for="fTitle">Title *</label>
+    <input id="fTitle" type="text" maxlength="40" placeholder="e.g. Push-ups" autocomplete="off">
+    <label for="fValue">Value *</label>
+    <input id="fValue" type="number" step="1" inputmode="numeric" placeholder="0">
+    <div id="err"></div>
+    <div id="modalBtns">
+      <button type="button" id="cancelBtn">Cancel</button>
+      <button type="button" id="saveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var KEY = 'counterAppData_v1';
+  var state = load();
+
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var s = JSON.parse(raw);
+        if (s && Array.isArray(s.counters) && s.counters.length) {
+          if (!s.counters.some(function (c) { return c.id === s.currentId; })) s.currentId = s.counters[0].id;
+          return s;
+        }
+      }
+    } catch (e) {}
+    var c = { id: uid(), title: 'Counter 1', count: 0 };
+    return { counters: [c], currentId: c.id };
+  }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function find(id) {
+    return state.counters.filter(function (c) { return c.id === id; })[0];
+  }
+  function current() { return find(state.currentId); }
+
+  var $count = document.getElementById('count');
+  var $title = document.getElementById('title');
+  var $list = document.getElementById('list');
+  var $sidebar = document.getElementById('sidebar');
+  var $overlay = document.getElementById('overlay');
+  var $modalBg = document.getElementById('modalBg');
+  var $modal = document.getElementById('modal');
+  var $modalTitle = document.getElementById('modalTitle');
+  var $fTitle = document.getElementById('fTitle');
+  var $fValue = document.getElementById('fValue');
+  var $err = document.getElementById('err');
+
+  function render() {
+    var c = current();
+    $count.textContent = c.count;
+    $title.textContent = c.title;
+    renderList();
+  }
+
+  function renderList() {
+    $list.innerHTML = '';
+    state.counters.forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'item' + (c.id === state.currentId ? ' active' : '');
+
+      var info = document.createElement('div');
+      info.className = 'info';
+      var name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = c.title;
+      var val = document.createElement('div');
+      val.className = 'val';
+      val.textContent = 'Count: ' + c.count;
+      info.appendChild(name); info.appendChild(val);
+      info.addEventListener('click', function () {
+        state.currentId = c.id; save(); render(); closeSidebar();
+      });
+
+      var edit = document.createElement('button');
+      edit.className = 'act';
+      edit.textContent = '✎';
+      edit.setAttribute('aria-label', 'Edit ' + c.title);
+      edit.addEventListener('click', function () { openModal(c.id); });
+
+      var del = document.createElement('button');
+      del.className = 'act';
+      del.textContent = '🗑';
+      del.setAttribute('aria-label', 'Delete ' + c.title);
+      del.addEventListener('click', function () {
+        if (confirm('Delete "' + c.title + '"?\nThis cannot be undone.')) removeCounter(c.id);
+      });
+
+      row.appendChild(info); row.appendChild(edit); row.appendChild(del);
+      $list.appendChild(row);
+    });
+  }
+
+  function change(delta) {
+    var c = current();
+    c.count += delta;
+    save();
+    $count.textContent = c.count;
+    renderList();
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
+
+  function removeCounter(id) {
+    state.counters = state.counters.filter(function (c) { return c.id !== id; });
+    if (!state.counters.length) {
+      state.counters.push({ id: uid(), title: 'Counter 1', count: 0 });
+    }
+    if (!find(state.currentId)) state.currentId = state.counters[0].id;
+    save(); render();
+  }
+
+  function openSidebar() { $sidebar.classList.add('open'); $overlay.classList.add('open'); }
+  function closeSidebar() { $sidebar.classList.remove('open'); $overlay.classList.remove('open'); }
+
+  // ----- Add / Edit modal -----
+  var editingId = null; // null = adding a new counter
+
+  function openModal(id) {
+    editingId = id || null;
+    $err.textContent = '';
+    $fTitle.classList.remove('bad');
+    $fValue.classList.remove('bad');
+    if (editingId) {
+      var c = find(editingId);
+      $modalTitle.textContent = 'Edit Counter';
+      $fTitle.value = c.title;
+      $fValue.value = c.count;
+    } else {
+      $modalTitle.textContent = 'New Counter';
+      $fTitle.value = '';
+      $fValue.value = '0';
+    }
+    $modalBg.classList.add('open');
+    setTimeout(function () { $fTitle.focus(); }, 50);
+  }
+
+  function closeModal() { $modalBg.classList.remove('open'); editingId = null; }
+
+  function saveModal() {
+    var title = $fTitle.value.trim();
+    var raw = $fValue.value.trim();
+    $fTitle.classList.remove('bad');
+    $fValue.classList.remove('bad');
+
+    if (!title) {
+      $fTitle.classList.add('bad');
+      $err.textContent = 'Title is required.';
+      $fTitle.focus();
+      return;
+    }
+    if (raw === '' || !/^-?\d+$/.test(raw)) {
+      $fValue.classList.add('bad');
+      $err.textContent = raw === '' ? 'Value is required.' : 'Value must be a whole number.';
+      $fValue.focus();
+      return;
+    }
+    var value = parseInt(raw, 10);
+
+    if (editingId) {
+      var c = find(editingId);
+      c.title = title;
+      c.count = value;
+    } else {
+      var n = { id: uid(), title: title, count: value };
+      state.counters.push(n);
+      state.currentId = n.id;
+      closeSidebar();
+    }
+    save(); render(); closeModal();
+  }
+
+  document.getElementById('saveBtn').addEventListener('click', saveModal);
+  [$fTitle, $fValue].forEach(function (el) {
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); saveModal(); } });
+  });
+
+  document.getElementById('cancelBtn').addEventListener('click', closeModal);
+  $modalBg.addEventListener('click', function (e) { if (e.target === $modalBg) closeModal(); });
+
+  // ----- Events -----
+  document.getElementById('plus').addEventListener('click', function (e) { e.stopPropagation(); change(1); });
+  document.getElementById('minus').addEventListener('click', function (e) { e.stopPropagation(); change(-1); });
+  document.getElementById('menuBtn').addEventListener('click', function (e) { e.stopPropagation(); openSidebar(); });
+  document.getElementById('editBtn').addEventListener('click', function (e) { e.stopPropagation(); openModal(state.currentId); });
+  document.getElementById('addBtn').addEventListener('click', function () { openModal(null); });
+  $overlay.addEventListener('click', closeSidebar);
+
+  // Tap anywhere on the main screen (outside buttons) to increase
+  document.getElementById('main').addEventListener('click', function (e) {
+    if (e.target.closest('button')) return;
+    change(1);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
